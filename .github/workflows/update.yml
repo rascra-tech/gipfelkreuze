@@ -1,0 +1,91 @@
+name: Daten aktualisieren und Seite veröffentlichen
+
+on:
+  schedule:
+    - cron: '23 2 * * 1'      # jeden Montag 02:23 UTC
+  workflow_dispatch:           # manuell über „Run workflow“
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python-Pakete
+        run: pip install pyproj osmium
+
+      # OSM: Geofabrik-Auszug der Alpen (statt Overpass – dort ~2,5 h und nicht für Automatik gedacht)
+      - name: OSM-Auszug Alpen laden (Geofabrik, ~2,3 GB)
+        id: pbf
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: curl -sSfL -A "gipfelkreuze-uebersicht (GitHub Action)" -o /tmp/alps.osm.pbf https://download.geofabrik.de/europe/alps-latest.osm.pbf
+
+      - name: Gipfel und Kreuze aus dem Auszug filtern
+        id: extract
+        if: github.event_name != 'push' && steps.pbf.outcome == 'success'
+        continue-on-error: true
+        run: python scripts/extract_osm.py /tmp/alps.osm.pbf /tmp/osm_elements.json
+
+      - name: OSM-Gipfelkreuze ermitteln
+        if: github.event_name != 'push' && steps.extract.outcome == 'success'
+        continue-on-error: true        # bei Problemen bleibt die letzte Version
+        run: node scripts/update_osm.mjs --from-file /tmp/osm_elements.json
+
+      - name: Bayern-Gipfelkreuze (LDBV, Kreuz neben Gipfel)
+        if: github.event_name != 'push' && steps.extract.outcome == 'success'
+        continue-on-error: true
+        run: python scripts/update_by.py /tmp/osm_elements.json
+
+      - name: BEV-Gipfelkreuze aktualisieren
+        if: github.event_name != 'push'
+        continue-on-error: true        # lädt nur neu, wenn es einen neuen Stichtag gibt
+        run: python scripts/update_bev.py
+
+      - name: Wikidata-Gipfelkreuze abfragen
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: node scripts/update_wikidata.mjs
+
+      - name: Neue Daten ins Repository übernehmen
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/data
+          git diff --cached --quiet || git commit -m "Daten aktualisiert $(date -u +%F)"
+          git push || true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

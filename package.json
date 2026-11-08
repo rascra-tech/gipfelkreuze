@@ -1,0 +1,6 @@
+{
+  "name": "gipfelkreuze",
+  "private": true,
+  "type": "module",
+  "description": "Übersicht der Gipfelkreuze in den Ostalpen (OSM + BEV)"
+}
