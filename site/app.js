@@ -19,9 +19,15 @@ GROUPS.forEach((g, i) => {
 });
 const box = () => [+$('s').value, +$('w').value, +$('n').value, +$('e').value];
 function setBox(s, w, n, e) { $('s').value = s; $('w').value = w; $('n').value = n; $('e').value = e; }
+// Gewählte Gebirgsgruppe: Liste nach Gruppenzuordnung filtern (nicht nach dem Rechteck),
+// damit Kreuze in Lücken zwischen den Rechtecken nicht herausfallen. null = freier Bereich.
+let groupSel = null;
 function applyPreset() {
   const g = GROUPS[sel.value];
-  if (g.length > 1) { setBox(g[1], g[2], g[3], g[4]); $('regionTitle').textContent = g[0]; }
+  if (g.length > 1) {
+    setBox(g[1], g[2], g[3], g[4]); $('regionTitle').textContent = g[0];
+    groupSel = +sel.value > 0 ? g[0] : null;   // 0 = Ostalpen gesamt → Rechteck
+  }
 }
 // Region über #hash merken/teilen (z. B. …/#karwendel)
 const slug = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -53,8 +59,11 @@ function filtered() {
   const f = $('filter').value.toLowerCase(), minE = parseInt($('minEle').value) || 0;
   const want = new Set([...document.querySelectorAll('.q:checked')].map(x => +x.value));
   const onlyBev = $('onlyBev').checked;
+  const inRegion = groupSel
+    ? en => (en.group ??= groupOf(en.lat, en.lon)) === groupSel
+    : en => en.lat >= s && en.lat <= n && en.lon >= w && en.lon <= e;
   return [...entries.values()].filter(en =>
-    en.lat >= s && en.lat <= n && en.lon >= w && en.lon <= e &&
+    inRegion(en) &&
     en.src.some(k => want.has(k)) && (!onlyBev || !en.src.some(k => OSM_SRC.includes(k))) &&
     (en.name.toLowerCase().includes(f) || (en.bevName || '').toLowerCase().includes(f)) &&
     (minE === 0 || (en.ele || 0) >= minE));
@@ -91,7 +100,11 @@ function render(fit) {
       .bindPopup(`<b>${esc(en.name)}</b><br>${en.ele ? Math.round(en.ele) + ' m<br>' : ''}${en.src.map(k => SRC_LABEL[k]).join(', ')}<br><a target="_blank" href="${osmUrl(en)}">in OSM öffnen</a>`)
       .addTo(layer);
   }
-  if (fit) { const [s, w, n, e] = box(); map.fitBounds([[s, w], [n, e]]); }
+  if (fit) {
+    const [s, w, n, e] = box(), b = L.latLngBounds([[s, w], [n, e]]);
+    if (groupSel) list.forEach(en => b.extend([en.lat, en.lon]));   // auch zugeordnete Kreuze außerhalb des Rechtecks
+    map.fitBounds(b);
+  }
   const c = k => list.filter(en => en.src.includes(k)).length;
   const notOsm = list.filter(en => !en.src.some(k => OSM_SRC.includes(k))).length;
   $('status').textContent = `${list.length} Gipfelkreuze in der Auswahl · Kreuz-Tag ${c(1)} · Kreuz-Punkt ${c(2)} · ohne Gipfel ${c(3)} · BEV ${c(4)}` +
@@ -205,12 +218,12 @@ $('csv').onclick = () => {
 $('fromMap').onclick = () => {
   const b = map.getBounds();
   setBox(b.getSouth().toFixed(3), b.getWest().toFixed(3), b.getNorth().toFixed(3), b.getEast().toFixed(3));
-  $('regionTitle').textContent = '(Kartenausschnitt)'; render(false);
+  $('regionTitle').textContent = '(Kartenausschnitt)'; groupSel = null; render(false);
 };
 $('live').onclick = liveUpdate;
 ['filter', 'minEle', 'onlyBev'].forEach(id => $(id).addEventListener('input', () => { shown = 300; render(false); }));
 document.querySelectorAll('.q').forEach(x => x.addEventListener('change', () => { shown = 300; render(false); }));
-['s', 'w', 'n', 'e'].forEach(id => $(id).addEventListener('change', () => render(true)));
+['s', 'w', 'n', 'e'].forEach(id => $(id).addEventListener('change', () => { groupSel = null; render(true); }));
 $('moreBtn').onclick = () => { shown += 300; render(false); };
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : (k === 'ele' ? -1 : 1); sortKey = k; render(false);

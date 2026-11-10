@@ -32,7 +32,7 @@ export const GROUPS = [
   ['Ötztaler Alpen', 46.65, 10.60, 47.12, 11.10],
   ['Stubaier Alpen', 46.85, 11.00, 47.25, 11.45],
   ['Tuxer & Zillertaler Alpen', 46.90, 11.45, 47.25, 12.10],
-  ['Kitzbüheler Alpen', 47.20, 11.75, 47.50, 12.70],
+  ['Kitzbüheler Alpen', 47.20, 11.75, 47.525, 12.70],   // Nord 47.525: Pölven (Schwoicher/Söller Kreuz) gehört dazu
   ['Hohe Tauern', 46.85, 12.10, 47.25, 13.55],
   ['Niedere Tauern', 47.10, 13.40, 47.45, 14.75],
   ['Gurktaler Alpen & Nockberge', 46.75, 13.55, 47.05, 14.30],
@@ -62,16 +62,29 @@ export const SERVERS = [
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 
+// Kreuze, die weiter als das von jedem Gruppen-Rechteck entfernt liegen, bekommen keine Gruppe
+export const GROUP_MAX_KM = 30;
+
+// Abstand eines Punktes zu einem Gruppen-Rechteck in km (0 = innerhalb)
+export function boxDistKm(lat, lon, g) {
+  const dLat = lat < g[1] ? g[1] - lat : lat > g[3] ? lat - g[3] : 0;
+  const dLon = lon < g[2] ? g[2] - lon : lon > g[4] ? lon - g[4] : 0;
+  return Math.hypot(dLat * 111.2, dLon * 111.2 * Math.cos(lat * Math.PI / 180));
+}
+
+// Gebirgsgruppe eines Punktes: das kleinste Rechteck, in dem er liegt;
+// liegt er in einer Lücke zwischen den Rechtecken, das nächstgelegene (bis GROUP_MAX_KM).
 export function groupOf(lat, lon) {
-  let best = '', area = 1e9;
+  let best = '', area = 1e9, near = '', nearKm = GROUP_MAX_KM;
   for (const g of GROUPS.slice(1)) {
     if (g.length === 1) continue;
-    if (lat >= g[1] && lat <= g[3] && lon >= g[2] && lon <= g[4]) {
+    const d = boxDistKm(lat, lon, g);
+    if (d === 0) {
       const a = (g[3] - g[1]) * (g[4] - g[2]);
       if (a < area) { area = a; best = g[0]; }
-    }
+    } else if (d < nearKm) { nearKm = d; near = g[0]; }
   }
-  return best;
+  return best || near;
 }
 
 export function dist(a, b) {
