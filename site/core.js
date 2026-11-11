@@ -50,9 +50,9 @@ export const GROUPS = [
 export const DEFAULTS = { radius: 150, minEleFree: 1200 };
 
 // Quellen-Kennungen
-export const SRC = { TAG: 1, NEAR: 2, FREE: 3, BEV: 4, WD: 5, BY: 6 };
-export const SRC_LABEL = { 1: 'Kreuz-Tag', 2: 'Kreuz-Punkt', 3: 'ohne Gipfel', 4: 'BEV', 5: 'Wikidata', 6: 'Bayern' };
-export const SRC_COLOR = { 1: '#1f7a4d', 2: '#d08a1e', 3: '#7b6fb0', 4: '#2563a8', 5: '#a3366f', 6: '#0f766e' };
+export const SRC = { TAG: 1, NEAR: 2, FREE: 3, BEV: 4, WD: 5, BY: 6, CM: 7 };
+export const SRC_LABEL = { 1: 'Kreuz-Tag', 2: 'Kreuz-Punkt', 3: 'ohne Gipfel', 4: 'BEV', 5: 'Wikidata', 6: 'Bayern', 7: 'Commons' };
+export const SRC_COLOR = { 1: '#1f7a4d', 2: '#d08a1e', 3: '#7b6fb0', 4: '#2563a8', 5: '#a3366f', 6: '#0f766e', 7: '#475569' };
 export const OSM_SRC = [SRC.TAG, SRC.NEAR, SRC.FREE];
 
 export const SERVERS = [
@@ -214,9 +214,10 @@ export function mergeElements(entries, els, opt = DEFAULTS) {
 
 // Punkte einer Zusatzquelle (GeoJSON-Features) mit bestehenden Einträgen abgleichen.
 // Liegt ein Eintrag näher als `radius`, bekommt er die Quelle dazu; sonst wird ein neuer Eintrag angelegt.
-// Properties: name, ele, optional year (Errichtungsjahr), wikidata (Q-Nummer), wikipedia ("de:Titel").
-const PREFIX = { [SRC.BEV]: 'bev/', [SRC.WD]: 'wd/', [SRC.BY]: 'by/' };
-const FALLBACK = { [SRC.BEV]: 'Gipfelkreuz (BEV)', [SRC.WD]: 'Gipfelkreuz (Wikidata)', [SRC.BY]: 'Gipfelkreuz (Bayern)' };
+// Properties: name, ele, optional year (Errichtungsjahr), wikidata (Q-Nummer), wikipedia ("de:Titel"),
+// commons (Dateiname eines Fotos auf Wikimedia Commons).
+const PREFIX = { [SRC.BEV]: 'bev/', [SRC.WD]: 'wd/', [SRC.BY]: 'by/', [SRC.CM]: 'cm/' };
+const FALLBACK = { [SRC.BEV]: 'Gipfelkreuz (BEV)', [SRC.WD]: 'Gipfelkreuz (Wikidata)', [SRC.BY]: 'Gipfelkreuz (Bayern)', [SRC.CM]: 'Gipfelkreuz (Commons)' };
 export function mergePoints(entries, features, src, radius = 250) {
   let matched = 0, added = 0;
   const list = [...entries.values()];
@@ -236,12 +237,13 @@ export function mergePoints(entries, features, src, radius = 250) {
       if (p.year && !best.year) best.year = p.year;
       if (p.wikidata && !best.wikidata) best.wikidata = p.wikidata;
       if (p.wikipedia && !best.wikipedia) best.wikipedia = p.wikipedia;
+      if (p.commons && !best.commons) best.commons = p.commons;
       matched++;
     } else {
       const key = PREFIX[src] + (p.id ?? `${lat},${lon}`);
       const en = { id: key, lat, lon, name: p.name || FALLBACK[src], ele: p.ele || null,
         wikipedia: p.wikipedia || null, src: [src], crossId: null, bevName: src === SRC.BEV ? p.name || null : null,
-        year: p.year || null, wikidata: p.wikidata || null };
+        year: p.year || null, wikidata: p.wikidata || null, commons: p.commons || null };
       entries.set(key, en); list.push(en); added++;
     }
   }

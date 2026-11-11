@@ -57,6 +57,11 @@ jobs:
         continue-on-error: true
         run: python scripts/update_by.py /tmp/osm_elements.json
 
+      - name: Commons-Gipfelkreuze (Foto ≤ 100 m neben Gipfel)
+        if: github.event_name != 'push' && steps.extract.outcome == 'success'
+        continue-on-error: true
+        run: python scripts/update_commons.py /tmp/osm_elements.json
+
       - name: BEV-Gipfelkreuze aktualisieren
         if: github.event_name != 'push'
         continue-on-error: true        # lädt nur neu, wenn es einen neuen Stichtag gibt

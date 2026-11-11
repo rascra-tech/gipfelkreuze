@@ -12,6 +12,7 @@
 | **BEV** (amtlich, Österreich) | DLM 7000 Namen, Tabelle `NAM_7600_SONSTIGE_P`, `OBJEKTART` = „2313 Gipfelkreuz“; Stichtag wird aus dem BEV-Datenkatalog gelesen | 307 (Stichtag 23.03.2026) |
 | **Wikidata** | Objekte „Gipfelkreuz“ (Q361665), mit Errichtungsjahr | 86 |
 | **Bayern** (LDBV, ATKIS Basis-DLM) | Kreuze (bauwerksfunktion 1760 = Bildstock/Wegekreuz/Gipfelkreuz) höchstens 100 m neben einem OSM-Gipfel | 507 |
+| **Wikimedia Commons** (seit 11.11.2026) | Fotos aus den Kategorien „Summit crosses in …“ (AT, DE, IT, SLO, CH, LI), aufgenommen ≤ 100 m (Objektort ≤ 150 m) neben einem OSM-Gipfel; Kreuz = dieser Gipfel, mit Link auf ein Foto | ~520 Gipfel, davon ~120 neu |
 
 Zusammen rund 4.840 Gipfelkreuze, davon gut 330 nicht in OSM (Häkchen „nur ‚fehlt in OSM‘“).
 
@@ -23,7 +24,8 @@ Zusammen rund 4.840 Gipfelkreuze, davon gut 330 nicht in OSM (Häkchen „nur �
 4. `scripts/update_by.py …` → `site/data/by.geojson` (bayerischer WFS + Gipfel aus Schritt 2)
 5. `scripts/update_bev.py` → `site/data/bev.geojson` (nur bei neuem Stichtag)
 6. `scripts/update_wikidata.mjs` → `site/data/wikidata.geojson`
-7. Daten committen, Seite auf GitHub Pages veröffentlichen.
+7. `scripts/update_commons.py …` → `site/data/commons.geojson` (Commons-API + Gipfel aus Schritt 2)
+8. Daten committen, Seite auf GitHub Pages veröffentlichen.
 
 Schlägt ein Schritt fehl, bleibt die letzte Version dieser Quelle erhalten.
 
@@ -40,6 +42,7 @@ Früher wurden die OSM-Daten über 84 Overpass-Kacheln abgefragt. Das dauerte ~1
 | `scripts/update_by.py` | Bayern → `site/data/by.geojson` |
 | `scripts/update_bev.py` | BEV → `site/data/bev.geojson` |
 | `scripts/update_wikidata.mjs` | Wikidata → `site/data/wikidata.geojson` |
+| `scripts/update_commons.py` | Wikimedia Commons → `site/data/commons.geojson` |
 
 ## Anpassen
 
@@ -57,9 +60,10 @@ node scripts/update_osm.mjs --from-file osm_elements.json
 python scripts/update_by.py osm_elements.json
 python scripts/update_bev.py
 node scripts/update_wikidata.mjs
+python scripts/update_commons.py osm_elements.json
 python -m http.server -d site      # dann http://localhost:8000
 ```
 
 ## Lizenzen
 
-Daten: © OpenStreetMap-Mitwirkende (ODbL) · © BEV (CC BY 4.0) · Wikidata (CC0) · © Bayerische Vermessungsverwaltung – www.geodaten.bayern.de (CC BY 4.0). Die zusammengeführte Liste fällt wegen der OSM-Daten unter die ODbL.
+Daten: © OpenStreetMap-Mitwirkende (ODbL) · © BEV (CC BY 4.0) · Wikidata (CC0) · © Bayerische Vermessungsverwaltung – www.geodaten.bayern.de (CC BY 4.0) · Wikimedia Commons (nur Aufnahmeort und Link; die Fotos stehen unter ihren eigenen freien Lizenzen). Die zusammengeführte Liste fällt wegen der OSM-Daten unter die ODbL.

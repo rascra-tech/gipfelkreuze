@@ -4,7 +4,9 @@ import { GROUPS, SRC, SRC_LABEL, SRC_COLOR, OSM_SRC, groupOf, dist, num, buildQu
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let entries = new Map(), bevFeatures = [];
-const extra = { [SRC.WD]: [], [SRC.BY]: [] };   // weitere Zusatzquellen (Wikidata, Bayern)
+const extra = { [SRC.WD]: [], [SRC.BY]: [], [SRC.CM]: [] };   // weitere Zusatzquellen (Wikidata, Bayern, Commons)
+const EXTRA_FILES = [[SRC.WD, 'data/wikidata.geojson', 300], [SRC.BY, 'data/by.geojson', 150], [SRC.CM, 'data/commons.geojson', 150]];
+const commonsUrl = f => 'https://commons.wikimedia.org/wiki/File:' + encodeURIComponent(f.replace(/ /g, '_'));
 let shown = 300, sortKey = 'ele', sortDir = -1;
 let map, layer;
 
@@ -39,7 +41,7 @@ sel.onchange = () => {
   shown = 300; render(true);
 };
 
-$('legend').innerHTML = 'Quelle:' + [1, 2, 3, 4, 5, 6].map(k => `<span class="dot" style="background:${SRC_COLOR[k]}"></span>${SRC_LABEL[k]}`).join('');
+$('legend').innerHTML = 'Quelle:' + [1, 2, 3, 4, 5, 6, 7].map(k => `<span class="dot" style="background:${SRC_COLOR[k]}"></span>${SRC_LABEL[k]}`).join('');
 
 // ---------- Karte & Liste ----------
 function initMap() {
@@ -50,9 +52,10 @@ function initMap() {
   const [s, w, n, e] = box(); map.fitBounds([[s, w], [n, e]]);
 }
 const mainSrc = en => Math.min(...en.src);
-const osmUrl = en => en.id.startsWith('bev/') || en.id.startsWith('imp/')
-  ? `https://www.openstreetmap.org/?mlat=${en.lat}&mlon=${en.lon}#map=17/${en.lat}/${en.lon}`
-  : `https://www.openstreetmap.org/${en.id}`;
+// OSM-Objekt, wenn die Kennung eines enthält (auch „cm/node/123“), sonst die Kartenstelle
+const osmUrl = en => { const m = en.id.match(/(?:^|\/)((?:node|way|relation)\/\d+)$/);
+  return m ? `https://www.openstreetmap.org/${m[1]}`
+    : `https://www.openstreetmap.org/?mlat=${en.lat}&mlon=${en.lon}#map=17/${en.lat}/${en.lon}`; };
 
 function filtered() {
   const [s, w, n, e] = box();
@@ -82,7 +85,8 @@ function render(fit) {
       return ` · <a target="_blank" href="https://${en.wikipedia.slice(0, i)}.wikipedia.org/wiki/${encodeURIComponent(en.wikipedia.slice(i + 1))}">Wikipedia</a>`; })() : '';
     const alt = (en.bevName && en.bevName !== en.name ? `<div style="font-size:11.5px;color:var(--mute)">BEV: ${esc(en.bevName)}</div>` : '') +
       (en.year ? `<div style="font-size:11.5px;color:var(--mute)">Kreuz errichtet ${en.year}</div>` : '');
-    const wd = en.wikidata ? ` · <a target="_blank" href="https://www.wikidata.org/wiki/${en.wikidata}">Wikidata</a>` : '';
+    const wd = (en.wikidata ? ` · <a target="_blank" href="https://www.wikidata.org/wiki/${en.wikidata}">Wikidata</a>` : '') +
+      (en.commons ? ` · <a target="_blank" href="${commonsUrl(en.commons)}">Foto</a>` : '');
     return `<tr>
       <td><a href="#" data-ll="${en.lat},${en.lon}">${esc(en.name)}</a>${alt}</td>
       <td class="num">${en.ele ? Math.round(en.ele) + ' m' : '–'}</td>
@@ -97,7 +101,8 @@ function render(fit) {
   layer.clearLayers();
   for (const en of list) {
     L.circleMarker([en.lat, en.lon], { radius: 5, color: SRC_COLOR[mainSrc(en)], weight: 1, fillOpacity: .9 })
-      .bindPopup(`<b>${esc(en.name)}</b><br>${en.ele ? Math.round(en.ele) + ' m<br>' : ''}${en.src.map(k => SRC_LABEL[k]).join(', ')}<br><a target="_blank" href="${osmUrl(en)}">in OSM öffnen</a>`)
+      .bindPopup(`<b>${esc(en.name)}</b><br>${en.ele ? Math.round(en.ele) + ' m<br>' : ''}${en.src.map(k => SRC_LABEL[k]).join(', ')}<br><a target="_blank" href="${osmUrl(en)}">in OSM öffnen</a>` +
+        (en.commons ? ` · <a target="_blank" href="${commonsUrl(en.commons)}">Foto</a>` : ''))
       .addTo(layer);
   }
   if (fit) {
@@ -108,7 +113,7 @@ function render(fit) {
   const c = k => list.filter(en => en.src.includes(k)).length;
   const notOsm = list.filter(en => !en.src.some(k => OSM_SRC.includes(k))).length;
   $('status').textContent = `${list.length} Gipfelkreuze in der Auswahl · Kreuz-Tag ${c(1)} · Kreuz-Punkt ${c(2)} · ohne Gipfel ${c(3)} · BEV ${c(4)}` +
-    (c(5) ? ` · Wikidata ${c(5)}` : '') + (c(6) ? ` · Bayern ${c(6)}` : '') + (notOsm ? ` (davon ${notOsm} nicht in OSM)` : '');
+    (c(5) ? ` · Wikidata ${c(5)}` : '') + (c(6) ? ` · Bayern ${c(6)}` : '') + (c(7) ? ` · Commons ${c(7)}` : '') + (notOsm ? ` (davon ${notOsm} nicht in OSM)` : '');
   return list.length;
 }
 
@@ -131,11 +136,11 @@ async function loadPrecomputed() {
     const st = meta.stichtag && /^\d{8}$/.test(meta.stichtag) ? `${meta.stichtag.slice(6)}.${meta.stichtag.slice(4, 6)}.${meta.stichtag.slice(0, 4)}` : '?';
     info.push(`BEV: ${bevFeatures.length} Kreuze, Stichtag ${st}`);
   } catch { info.push('BEV-Daten nicht gefunden'); }
-  for (const [src, file] of [[SRC.WD, 'data/wikidata.geojson'], [SRC.BY, 'data/by.geojson']]) {
+  for (const [src, file, radius] of EXTRA_FILES) {
     try {
       const r = await fetch(file, { cache: 'no-cache' }); if (!r.ok) continue;   // Quelle (noch) nicht vorhanden
       extra[src] = (await r.json()).features || [];
-      mergePoints(entries, extra[src], src, src === SRC.WD ? 300 : 150);
+      mergePoints(entries, extra[src], src, radius);
       info.push(`${SRC_LABEL[src]}: ${extra[src].length}`);
     } catch { /* optional */ }
   }
@@ -163,7 +168,7 @@ async function liveUpdate() {
     for (const [k, en] of fresh) entries.set(k, en);
     const inBox = f => { const [lo, la] = f.geometry.coordinates; return la >= s && la <= n && lo >= w && lo <= e; };
     mergeBev(entries, bevFeatures.filter(inBox));
-    for (const src of [SRC.WD, SRC.BY]) mergePoints(entries, extra[src].filter(inBox), src, src === SRC.WD ? 300 : 150);
+    for (const [src, , radius] of EXTRA_FILES) mergePoints(entries, extra[src].filter(inBox), src, radius);
   }
   render(false);
   if (errors.length) $('status').textContent += ` · ${errors.length} Teil(e) fehlgeschlagen: ${errors[0]}`;
